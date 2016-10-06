@@ -18,33 +18,20 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Map;
 import java.util.Properties;
+import java.lang.reflect.Method;
+import java.util.TreeMap;
 
 public class SimulatorProperties extends Properties {
 
-	/**
-	 *
-	 */
-	//private static final long serialVersionUID = -103113318411928500L;
 
-    /**
-     *  Default location of the properties file
-     */
-   	public static final String DEFAULT_PROP_FILE = "config" + File.separator + "simulator.properties";
 
-    /**
-     * Singleton
-     */
-    public final static SimulatorProperties INSTANCE = new SimulatorProperties();
-	
-	
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // //// ///// Property keys
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // //// /////
-    // //// ///// Keys related to nodes
-    // //// /////
 
     // TODO, remove these keys and leverage the platform file instead.
 
@@ -92,7 +79,6 @@ public class SimulatorProperties extends Properties {
 
 	
 	//Other keys
-	public final static String CONFIGURATION_FILE = "config.file";
 	public final static String DURATION = "simulator.duration";
 	public final static String LOAD_PERIOD = "simulator.loadperiod";
     public final static String CRASH_PERIOD = "simulator.crashperiod";
@@ -114,10 +100,7 @@ public class SimulatorProperties extends Properties {
 	public final static String MIN_PERCENTAGE_OF_ACTIVE_VMS = "loadinjector.minimumpercentageactive";
 	public final static String MAX_PERCENTAGE_OF_ACTIVE_VMS = "loadinjector.maximumpercentageactive";
 	public final static String STEP_BY_STEP = "loadinjector.stepbystep";
-	
-	//Keys related to scripts used when the simulator is deployed on a real system
-	public final static String SCRIPT_CREATE_VMS = "script.createvms";
-	public final static String SCRIPT_INJECT_LOAD = "script.injectload";
+
 	
 	private static final String SIMU_ALGO = "simulator.algorithm";
 	private static final String SIMU_IMPL = "simulator.implementation";
@@ -132,10 +115,25 @@ public class SimulatorProperties extends Properties {
 	public final static String VM_SUSPEND_PERIOD = "simulator.vm.suspendperiod";
 	public final static String VM_SUSPEND_DURATION = "simulator.vm.suspendduration";
 
+
+	// Keys related to the files that contain the context of the simulation
+	private static final String FILE_PLATFORM = "file.platform";
+	private static final String FILE_INITIAL_CONDITIONS = "file.initialconditions";
+	private static final String FILE_EVENTS = "file.events";
+	private static final String FILE_VM_TYPES = "file.vmtypes";
+
+
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//Property default values
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	
+
+	//Default values related to the property file and the context of simulation (platform, initial conditions, events, vm types)
+	private static final String DEFAULT_FILE_PROP = "config" + File.separator + "simulator.properties";
+	private static final String DEFAULT_FILE_PLATFORM = null;
+	private static final String DEFAULT_FILE_INITIAL_CONDITIONS = null;
+	private static final String DEFAULT_FILE_EVENTS = null;
+	private static final String DEFAULT_FILE_VM_TYPES = null;
+
 	//Default values related to nodes
 	public final static int DEFAULT_NB_OF_HOSTINGNODES = 50;
 	public final static int DEFAULT_NB_OF_CPUS = 4;
@@ -155,7 +153,6 @@ public class SimulatorProperties extends Properties {
 	public final static int DEFAULT_NB_OF_CPU_CONSUMPTION_SLOTS = 2;
 	
 	//Other default values
-	public final static String DEFAULT_CONFIGURATION_FILE = "config" + File.separator + "initialConfiguration.txt";
 	public final static int DEFAULT_DURATION = 1800; // in sec (default is 30min)
 	public final static int DEFAULT_LOAD_PERIOD = 180; // in sec
     public final static int DEFAULT_CRASH_PERIOD = 604800;  // in sec => 7 days
@@ -171,10 +168,6 @@ public class SimulatorProperties extends Properties {
 	public final static boolean DEFAULT_MONITORING = false;
 	public final static boolean DEFAULT_WAIT_FOR_USER_INPUT = false;
 	public final static String DEFAULT_WORKER_NODES_FILE = null;
-	
-	//Default values related to scripts used when the simulator is deployed on a real system
-	public final static String DEFAULT_SCRIPT_CREATE_VMS = null;
-	public final static String DEFAULT_SCRIPT_INJECT_LOAD = null;
 
 	private static final String DEFAULT_SIMU_ALGO = "centralized";
     private static final String DEFAULT_SIMU_IMPL = "scheduling.centralized.entropy2.Entropy2RP";
@@ -188,6 +181,11 @@ public class SimulatorProperties extends Properties {
 	public final static int DEFAULT_VM_SUSPEND_DURATION = 3600;  // in sec => 1 hour
 
 
+	/**
+	 * Singleton
+	 */
+	public final static SimulatorProperties INSTANCE = new SimulatorProperties();
+
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//Constructors
@@ -195,7 +193,6 @@ public class SimulatorProperties extends Properties {
 	
 	public SimulatorProperties(String file){
 		super();
-		
 		try {
 			BufferedReader reader = new BufferedReader(new FileReader(file));
 			this.load(reader);
@@ -205,10 +202,13 @@ public class SimulatorProperties extends Properties {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		catch(NullPointerException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public SimulatorProperties(){
-		this(DEFAULT_PROP_FILE);
+		this(DEFAULT_FILE_PROP);
 	}
 	
 	@Override
@@ -227,22 +227,14 @@ public class SimulatorProperties extends Properties {
 	
 	public static int getPropertyAsInt(String key, int defaultValue){
 		String value = INSTANCE.getProperty(key);
-
-		if(System.getProperty(key) != null)
-			value = System.getProperty(key);
-
 		if(value != null)
 			return Integer.parseInt(value);
-		
 		else
 			return defaultValue;
 	}
 	
 	public static long getPropertyAsLong(String key, long defaultValue){
 		String value = INSTANCE.getProperty(key);
-
-		if(System.getProperty(key) != null)
-			value = System.getProperty(key);
 
 		if(value != null)
 			return Long.parseLong(value);
@@ -254,17 +246,32 @@ public class SimulatorProperties extends Properties {
 	public static boolean getPropertyAsBoolean(String key, boolean defaultValue){
 		String value = INSTANCE.getProperty(key);
 
-		if(System.getProperty(key) != null)
-			value = System.getProperty(key);
-
 		if(value != null)
 			return Boolean.parseBoolean(value);
 		
 		else
 			return defaultValue;
 	}
-	
-	
+
+	public static String getPropertyAsString(String key, String defaultValue){
+		String value = INSTANCE.getProperty(key);
+
+		if(value != null)
+			return value;
+
+		else
+			return defaultValue;
+	}
+
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//Methods related to the platform, events, vm_types files
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	public static String getFilePlatform(){return getPropertyAsString(FILE_PLATFORM, DEFAULT_FILE_PLATFORM); }
+	public static String getFileInitialConditions(){return getPropertyAsString(FILE_INITIAL_CONDITIONS, DEFAULT_FILE_INITIAL_CONDITIONS); }
+	public static String getFileEvents(){return getPropertyAsString(FILE_EVENTS, DEFAULT_FILE_EVENTS); }
+	public static String getFileVMTypes(){return getPropertyAsString(FILE_VM_TYPES, DEFAULT_FILE_VM_TYPES); }
+
+
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//Methods related to nodes
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -333,10 +340,7 @@ public class SimulatorProperties extends Properties {
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//Other methods
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	
-	public static String getConfigurationFile(){
-		return INSTANCE.getProperty(CONFIGURATION_FILE, DEFAULT_CONFIGURATION_FILE);
-	}
+
 	
 	public static long getDuration() {
 		return getPropertyAsInt(DURATION, DEFAULT_DURATION);
@@ -400,11 +404,6 @@ public class SimulatorProperties extends Properties {
 		return getPropertyAsBoolean(SIMULATION, DEFAULT_SIMULATION);
 	}
 
-	/*
-	public static boolean getMonitoring(){
-		return getPropertyAsBoolean(MONITORING, DEFAULT_MONITORING)
-				&& !getSimulation();
-	}*/
 
 
 	public static boolean goToStationaryStatus() {
@@ -422,48 +421,47 @@ public class SimulatorProperties extends Properties {
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//Methods related to scripts used when the simulator is deployed on a real system
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	
-	public static String getScriptCreateVMs(){
-		return INSTANCE.getProperty(SCRIPT_CREATE_VMS, DEFAULT_SCRIPT_CREATE_VMS);
-	}
-	
-	public static String getScriptInjectLoad(){
-		return INSTANCE.getProperty(SCRIPT_INJECT_LOAD, DEFAULT_SCRIPT_INJECT_LOAD);
-	}
+
 	public static String getAlgo() {
         return INSTANCE.getProperty(SIMU_ALGO, DEFAULT_SIMU_ALGO);
 	}
     public static String getImplementation() {
         return INSTANCE.getProperty(SIMU_IMPL, DEFAULT_SIMU_IMPL);
     }
-	
+
+    /**
+	 *
+	 * @param args
+	 * Displays the name of the getters and their return value, in alphabetical order
+	 * Skips method that do not start with "get", or methods that start with "getProperty"
+	 * Useful to undersand the simulation parameters
+     */
 	public static void main(String[] args){
-		System.out.println(SimulatorProperties.INSTANCE);
-		System.out.println("configuration file: " + SimulatorProperties.getConfigurationFile());
-		System.out.println("number of nodes: " + SimulatorProperties.getNbOfHostingNodes());
-		System.out.println("number of cpus: " + SimulatorProperties.getNbOfCPUs());
-		System.out.println("cpu capacity: " + SimulatorProperties.getCPUCapacity());
-		System.out.println("memory total: " + SimulatorProperties.getMemoryTotal());
-		System.out.println("nb of vms: " + SimulatorProperties.getNbOfVMs());
-        System.out.println("number of service nodes: " + SimulatorProperties.getNbOfServiceNodes());
+		String mname;
+		Object mvalue = null;
+		Method[] allMethods = INSTANCE.getClass().getDeclaredMethods();
+		TreeMap<String, Object> result = new TreeMap();
 
-        System.out.println("min percentage of active vms: " + SimulatorProperties.getMinPercentageOfActiveVMs());
+		System.out.println("Simulation Properties : ");
+		for (Method m : allMethods) {
+			mname = m.getName();
+			if (!mname.startsWith("get") | mname.startsWith("getProperty")) {
+				continue;
+			}
 
-		System.out.println("cpu consumption: " + SimulatorProperties.getVMMAXCPUConsumption());
+			try {
+				mvalue = m.invoke(null);
+			} catch (IllegalAccessException | InvocationTargetException | IllegalArgumentException  e) {
+				e.printStackTrace();
+				System.exit(1);
+			}
+			result.put(mname,mvalue);  //sorts methods by alphabetical order
+		}
 
-		System.out.println("Simuation duration: " + SimulatorProperties.getDuration());
-		System.out.println("Load period: " + SimulatorProperties.getLoadPeriod());
-        System.out.println("Crash period: " + SimulatorProperties.getCrashPeriod());
-		System.out.println("seed: " + SimulatorProperties.getSeed());
-		System.out.println("nb slots: " + SimulatorProperties.getNbOfCPUConsumptionSlots());
-		System.out.println("step by step: " + SimulatorProperties.getStepByStep());
-		System.out.println("nodes names file: " + SimulatorProperties.getVirtualNodesNamesFile());
-		System.out.println("simulation: " + SimulatorProperties.getSimulation());
-		//System.out.println("monitoring: " + SimulatorProperties.getMonitoring());
-		System.out.println("wait for user input: " + SimulatorProperties.getWaitForUserInput());
-		System.out.println("worker nodes file: " + SimulatorProperties.getWorkerNodesFile());
-		System.out.println("script to create vms: " + SimulatorProperties.getScriptCreateVMs());
-		System.out.println("script to inject getCPUDemand: " + SimulatorProperties.getScriptInjectLoad());
+		for (Map.Entry<String,Object> entry : result.entrySet())
+			System.out.format("%-40s %s\n", entry.getKey(), entry.getValue());
+
+
 	}
 
 }
